@@ -26,9 +26,9 @@ const node = new IPFS({
 		    "/dns4/wss0.bootstrap.libp2p.io/tcp/443/wss/ipfs/QmZMxNdpMkewiVZLMRxaNxUeZpDUb34pWjZ1kZvsd16Zic",
 		    "/dns4/wss1.bootstrap.libp2p.io/tcp/443/wss/ipfs/Qmbut9Ywz9YEDrz8ySBSgWyJk41Uvm2QJPhwDJzJyGFsD6"
 		]
-	},
-	EXPERIMENTAL: {
-		pubsub: true
+	// },
+	// EXPERIMENTAL: {
+	// 	pubsub: true
 	}
 })
 
@@ -49,3 +49,54 @@ node.on('error', (err) => {console.error(err)})
 // node.start()
 console.log("starting up")
 console.log(node)
+
+
+function listener(details) {
+  let filter = browser.webRequest.filterResponseData(details.requestId);
+  let decoder = new TextDecoder("utf-8");
+  let encoder = new TextEncoder();
+
+  filter.ondata = event => {
+  	// we replace the content
+  	node.files.cat("/ipfs/QmTDMoVqvyBkNMRhzvukTDznntByUNDwyNdSfV8dZ3VKRC/readme.md", // "hello world example"
+  		(err, files, o) => {
+  			console.log(err, files, o );
+  			if (err) {
+  				console.err(err); 
+    			filter.disconnect()
+    		} else {
+    			console.log("writing");
+    			files.on('data', (a) => {
+    				console.log("data", a);
+    				filter.write(a);
+    			})
+    			files.on('end', () => {
+    				console.log("end");
+    				filter.disconnect();
+    			})
+
+    			files.resume()
+    			// files.pipe({"on": (a, x) => { console.log('on', a, x); },
+    			// 			"pause": false,
+    			// 			"writable": true,
+    			// 			"end": () => filter.disconnect(),
+    			// 			"emit": () => console.log("emit"),
+    			// 			"write": (r) => {
+    			// 				console.log(r);
+    			// 				filter.write(r);
+    			// 				return true
+    			// 			}
+    			// 		})
+    			// files.drain();
+    		}
+  	});
+  }
+
+  return {};
+}
+
+browser.webRequest.onBeforeRequest.addListener(
+  listener,
+  {urls: ["*://*/hello-world*"], types: ["main_frame"]},
+  ["blocking"]
+);

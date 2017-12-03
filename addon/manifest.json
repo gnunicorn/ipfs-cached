@@ -9,7 +9,7 @@
     "48": "icons/border-48.png"
   },
 
- "content_security_policy": "default-src 'self'; script-src 'self' 'unsafe-eval';",
+ "content_security_policy": "default-src 'self' wss://*; object-src https://example.com/; script-src 'self' 'unsafe-eval';",
 
   "permissions": [
     "*://*/*",

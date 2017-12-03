@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "IPFS cached",
+  "version": "0.1.0",
+
+  "description": "Cache Web-Requests via IPFS",
+
+  "icons": {
+    "48": "icons/border-48.png"
+  },
+
+ "content_security_policy": "default-src 'self'; script-src 'self' 'unsafe-eval';",
+
+  "permissions": [
+    "*://*/*",
+    "storage",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+
+  "background": {
+    "scripts": ["background.js"]
+  }
+}

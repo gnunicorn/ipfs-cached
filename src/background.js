@@ -2,6 +2,7 @@
 // Set up IPFS node and connect to network
 // 
 const IPFS = require('ipfs')
+const moment = require('moment')
 
 // GLOBAL Consts
 const HEADERS_BLACKLIST = [
@@ -68,23 +69,32 @@ node.on('error', (err) => console.error(err))
 
 
 // 
-// internal helpers
+// -- internal helpers
 // 
 
+
+// 
+// Check whether the given set @{headers} allows us
+// to cache this response 
 function _can_cache_header(headers) {
   let keys = headers.map((x) => x.name);
 
   for (var i = 0; i < HEADERS_BLACKLIST.length; i++) {
     let name = HEADERS_BLACKLIST[i];
     if (keys.indexOf(name) != -1) {
-      console.log(name, "found in", keys);
+      console.log("not caching", name, "found in", keys);
       return false
     }
   }
 
-  let cache_control = headers.find((x) => x.name == 'Cache-Control')
-  if (cache_control) {
-    if (cache_control == 'no-cache' || cache_control == 'no-store' ) {
+  let cc_item = headers.find((x) => x.name == 'Cache-Control')
+  if (cc_item) {
+    let cache_control = cc_item.value;
+    if (cache_control == 'no-cache' ||
+        cache_control == 'no-store' ||
+        cache_control == 'must-revalidate' ||
+        cache_control == "proxy-revalidate" ||
+        cache_control == "private") {
       console.log("no cache / no store")
       return false
     }
@@ -92,7 +102,7 @@ function _can_cache_header(headers) {
 
   let pragma = headers.find((x) => x.name == 'Pragma')
   if (pragma) {
-    if (pragma == 'no-cache') {
+    if (pragma.value == 'no-cache') {
       console.log("pragma no cache")
       return false
     }
@@ -102,7 +112,7 @@ function _can_cache_header(headers) {
 }
 
 
-// Check the headers whether the given entry can be cached
+// Check the method and headers whether the given entry can be cached
 // or not
 function _can_be_cached(details) {
   let method = details.method;
@@ -113,18 +123,22 @@ function _can_be_cached(details) {
 
     if (details.fromCache) {
       // browser cache takes care of it.
+      console.log("nope. browser will.")
       return false;
     }
 
     if (details.requestHeaders && !_can_cache_header(details.requestHeaders)){
+      console.log("nope. request Headers prevent it.")
       return false;
     }
 
     if (details.responseHeaders && !_can_cache_header(details.responseHeaders)) {
+      console.log("nope. response Headers prevent it.")
       return false;
     }
 
     if (details.statusCode && details.statusCode !== 200) {
+      console.log("nope. StatusCode != 200")
       return false;
     }
 
@@ -139,6 +153,38 @@ function _can_be_cached(details) {
   return false;
 }
 
+// 
+// Check the Input headers for whether the cached content is stale now
+// 
+// this is an incomplete implementation of RFC2616 Section 14.9
+// https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9
+function _is_stale(headers) {
+  let mapped = {};
+  let expires;
+
+  for (var i = 0; i < headers.length; i++) {
+    mapped[headers[i].name] = headers[i].value;
+  }
+
+  if (mapped['cache-control'] && mapped.date) {
+    //  we have cache-control headers
+    cache_control = mapped['cache-control'].replace(' ');
+    let date = moment(mapped.date)
+    if (cache_control.slice(0, 8) == 'max-age=') {
+      expires = date.add(parseInt(cache_control.slice(8)), 'seconds');
+    } else if (cache_control.slice(0, 9) == 's-maxage=') {
+      expires = date.add(parseInt(cache_control.slice(9)), 'seconds');
+    }
+  } else if (mapped.expires) {
+    // we were given an expires header, check it
+    expires = moment(mapped.expires)
+  }
+
+  if (expires) {
+    return expires.isBefore(moment())
+  }
+  return false
+}
 
 // 
 // load the @{fileUrl} from IPFS and write the content into
@@ -168,23 +214,35 @@ function load_from_ipfs(filter, fileUrl) {
   })
 }
 
+
+// 
+// we have gotten a response, lets decide whether we store it
+// in the distributed cache
+// 
 function storeInCache(details) {
   if (_can_be_cached(details)) {
+    // cool this can be cached, let's do it!
+
     console.log("will store in cache", details);
     let filter = browser.webRequest.filterResponseData(details.requestId);
     let buffer;
-    console.log(filter);
+    // console.log(filter);
+
     filter.ondata = (e) => {
       // FIXME: can we always be sure this is complete?
       buffer = e.data;
       return e;
-    };
+    }
+
+    // once we received all data, store it on IPFS
+    // and add that to the cache 
     filter.onstop = () => {
       console.log("storing", details.url, buffer);
       node.files.add(Buffer.from(buffer), (err, res) => {
         if (err) throw err;
         console.log(res);
         const hash = res[0].hash;
+        // add hash and headers to cache
         CACHE[details.url] = {
           'headers': details.responseHeaders, // FIXME: clean up headers
           'ipfs_hash': hash
@@ -196,20 +254,30 @@ function storeInCache(details) {
 }
 
 
+// 
+// An outgoing request
+// 
 function canLoadFromCache(details) {
-  if (_can_be_cached(details)) {
-    console.log("can be cached");
-    let cached = CACHE[details.url];
-    console.log(CACHE, details.url, cached);
-    if (cached) {
-      console.log("found in cache");
-      let filter = browser.webRequest.filterResponseData(details.requestId);
 
+  // first see if this request can even be cached
+  if (_can_be_cached(details)) {
+
+    // see if it is in the cache
+    let cached = CACHE[details.url];
+    if (cached &&
+        !_is_stale(cached.headers) // and whether it is not stale
+      ) {
+      console.log("found in cache");
+      // found and not stale, let's load it
+
+      let filter = browser.webRequest.filterResponseData(details.requestId);
       filter.onstart = event => {
         // we replace the content
         load_from_ipfs(filter, cached.ipfs_hash)
       }
       return {
+        // and replace the response headers,
+        // with the ones from cache
         responseHeaders: cached.headers
       }
     }

@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "ipfs": "^0.26.0",
-    "left-pad": "^1.1.1"
+    "left-pad": "^1.1.1",
+    "moment": "^2.19.3",
+    "momentjs": "^2.0.0"
   }
 }

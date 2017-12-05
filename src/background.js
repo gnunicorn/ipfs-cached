@@ -291,6 +291,34 @@ function canLoadFromCache(details) {
 }
 
 // 
+// Retry on Error
+// 
+
+function maybeRetryWithProxy(details){
+  if (details.proxyInfo     ||      // This was a case of going through a proxy already
+      details.tabId === -1  ||      // Background request we can't reload
+      details.type ==! "main_frame" // We can only reload main frames at the moment 
+    ) {
+    // ignore on failure. User Intervention needed
+    return
+  }
+  let url = URL(details.url);
+  if (BLOCKED_HOSTS.indexOf(url.hostname) != -1) {
+    // not yet known to be blocked,
+    // add to list and try again
+    BLOCKED_HOSTS.push(url.hostname)
+    browser.storage.local.set({
+       blockedHosts: BLOCKED_HOSTS // triggers the update to the proxy
+     });
+
+    // reload the given tab to give the
+    // proxy a chance to kick in
+    browser.tabs.reload(details.tabId)
+
+  }
+}
+
+// 
 // ---- Hooking to browser events
 // 
 
@@ -308,10 +336,19 @@ browser.webRequest.onBeforeSendHeaders.addListener(
 );
 
 
+browser.webRequest.onError.addListener(
+  maybeRetryWithProxy,
+  {urls: ["https://www.hellorust.com/*"]},
+  ["blocking", "requestHeaders"]
+);
+
 
 //
 // ---- PROXY SETUP
 // 
+
+
+let BLOCKED_HOSTS = ["example.com", "example.org"];
 
 // Register the proxy script
 browser.proxy.register(proxyScriptURL);
@@ -334,6 +371,8 @@ browser.runtime.onMessage.addListener((message, sender) => {
       // Whenever someone changes the blocked host,
       // we'll sync it to the PAC-Proxy script
       browser.runtime.sendMessage(newSettings.blockedHosts.newValue, {toProxyScript: true});
+      // and store in instace our own for easier access
+      BLOCKED_HOSTS = newSettings.blockedHosts.newValue;
     });
 
     // get the current settings, then...
@@ -345,7 +384,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
         // ...otherwise, initialize storage with the default values
         } else {
           browser.storage.local.set({
-             blockedHosts: ["example.com", "example.org"]
+             blockedHosts: BLOCKED_HOSTS
            });
         }
       }).catch(()=> {

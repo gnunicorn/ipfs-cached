@@ -18,7 +18,8 @@
     "webRequest",
     "webRequestBlocking",
     "proxy",
-    "storage"
+    "storage",
+    "tabs"
   ],
 
   "background": {

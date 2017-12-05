@@ -45,24 +45,24 @@ The Request flow goes something like this:
        |                 |             |                                |
        | yes             |             | no                             |
        |                 |             v                                |
-+------v---------+       |        +----+--------------+  onError   +----v---------------+
-| is_not_stale?  +-------+        | *regular Request* +------------> *proxied request*  |
-+---+------------+                +--------+----------+            +----+---------------+
-    |                                      |                            |
-    |           +----------------+         |                            |
-    |           | can_be_cached? <---------+-----------+----------------+
-    |           +--------------+-+                     |
-    |  +------------------+    |                       |
-yes |  | store_in_cache() |    |yes                    |
-    |  +----+-----------^-+    |                       |
-    |       |           |      |                +------v-----------------+
-    |  +----v-----+     |      |                |                        |
++------v---------+       |        +----+--------------+         +-------v------------+
+| is_not_stale?  +-------+        | *regular Request* |  +------> *proxied request*  |
++---+------------+                +--------+--+-------+  |      +------+-------------+
+    |                            onSuccess |  | onError  |             |
+    |           +----------------+         |  |          |             |
+    |           | can_be_cached? <---------+  | +--------+----------+  |
+    |           +--------------+-+            +-> add_domain_to_BL()|  |
+    |  +------------------+    |                +-------------------+  |
+yes |  | store_in_cache() |    |yes                                    |
+    |  +----+-----------^-+    |                                       |
+    |       |           |      |                                       |
+    |  +----v-----+     |      |                +----------------------v-+
     |  |  emit()  |     |      |                |                        |
-    |  +----------+     |      |                |    RESPONSE            |
-    |                   |      |                |                        |
+    |  +----------+     |      |                |                        |
+    |                   |      |                |    RESPONSE            |
 +---v----------+   +----+------v------+         |                        |
-| fetch_ipfs() |   | upload_to_ipfs() |         +------+-----------------+
-+---+----------+   +------------------+                ^
+| fetch_ipfs() |   | upload_to_ipfs() |         |                        |
++---+----------+   +------------------+         +------^-----------------+
     |                                                  |
     |                                                  |
     +--------------------------------------------------+
@@ -82,6 +82,20 @@ Whats the state?
  - [x] implement proxying via PAC
  - [x] retry via proxy on broken request
  - [x] implement simple blacklisting example (spoofing geo-ip-lists)
+ - [ ] implement proxying via domain-fronting? (is that even possible?)
+
+
+## Limitations
+
+There are a few limitations you need to be aware of. The most important: **THIS IS A PROOF OF CONCEPT AND IN NO WAY MEANT FOR PRODUCTION USAGE**. and **THIS IS TOTALLY UNTESTED**, as well as:
+
+ - Firefox-only (at the moment)
+ - There isn't any actual Proxy configured, your failing requests will also just fail
+ - because of the way the interception interface works, the requests still happen in background (as it seems), even if the cache is loaded
+ - by just emitting the cache to a distributed network, this can easily be spoofed and other content injected
+ - Proxying via PAC has its limitations
+
+
 
 ## LICENSE
 

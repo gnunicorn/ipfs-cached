@@ -83,3 +83,6 @@ Whats the state?
  - [x] retry via proxy on broken request
  - [x] implement simple blacklisting example (spoofing geo-ip-lists)
 
+## LICENSE
+
+This is published under the GNU Affero General Public License v3.0. See the LICENSE file in this folder to learn more.

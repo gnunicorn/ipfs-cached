@@ -95,8 +95,9 @@ There are a few limitations you need to be aware of. The most important: **THIS 
  - because of the way the interception interface works, the requests still happen in background (as it seems), even if the cache is loaded
  - by just emitting the cache to a distributed network, this can easily be spoofed and other content injected
  - Proxying via PAC has its limitations
-
-
+ - There are certain firewall attacks this won't help against:
+     + DNS spoofing: if they respond with a faulty IP. Please use at trust worthy DNS (like opendns or google's `8.8.8.8`)
+     + HTTP-Injection: when they inject or replace content within the HTTP response or simply respond within the HTTP Protocol (give you a 404 for a given URL)
 
 ## LICENSE
 

@@ -11,7 +11,7 @@ const HEADERS_BLACKLIST = [
 ]
 const EMPTY_FILE = browser.extension.getURL('empty.html');
 const EXAMPLE_FILE_URL = "/ipfs/QmTDMoVqvyBkNMRhzvukTDznntByUNDwyNdSfV8dZ3VKRC/readme.md";
-
+const PUB_SUB_CHAN = "2017-12-05-ipfs-web-cache"
 
 
 // Location of the proxy script, relative to manifest.json
@@ -56,9 +56,9 @@ const node = new IPFS({
         "/dns4/wss0.bootstrap.libp2p.io/tcp/443/wss/ipfs/QmZMxNdpMkewiVZLMRxaNxUeZpDUb34pWjZ1kZvsd16Zic",
         "/dns4/wss1.bootstrap.libp2p.io/tcp/443/wss/ipfs/Qmbut9Ywz9YEDrz8ySBSgWyJk41Uvm2QJPhwDJzJyGFsD6"
     ]
-  // },
-  // EXPERIMENTAL: {
-  //  pubsub: true
+  },
+  EXPERIMENTAL: {
+   pubsub: true
   }
 })
 
@@ -67,15 +67,47 @@ node.on('ready', () => {
   // Your node is now ready to use \o/
   console.log("IPFS is ready")
   node.id().then(console.log.bind())
+
+  // subscribe to updates to the cache index
+  node.pubsub.subscribe(PUB_SUB_CHAN, (message) => {
+    console.log('got message from ' + message.from)
+
+    // data is a buffer. Here we're converting it into a string
+
+    let data = JSON.parse(message.data.toString())
+    console.log('containing data: ' + data)
+    if (data.url && data.headers && data.ipfs_hash) {
+      console.log("adding to local index")
+      CACHE[data.url] = {
+        "ipfs_hash" : data.ipfs_hash,
+        "headers": data.headers
+      }
+    }
+  })
 })
 node.on('error', (err) => console.error(err)) 
-
-
 
 
 // 
 // -- internal helpers
 // 
+
+
+function _emit_to_index(url, headers, ipfs_hash) {
+
+  CACHE[details.url] = {
+    'headers': details.responseHeaders, // FIXME: clean up headers
+    'ipfs_hash': hash
+  };
+  console.log("stored", hash, "for", details.url);
+  node.pubsub.publish(PUB_SUB_CHAN,
+    Buffer.from(JSON.stringify({url: url,
+      headers: headers, ipfs_hash: ipfs_hash})),
+    (err) => {
+      err ? console.log(err) : console.log("emitted");
+    });
+}
+
 
 
 // 
@@ -245,14 +277,10 @@ function storeInCache(details) {
       console.log("storing", details.url, buffer);
       node.files.add(Buffer.from(buffer), (err, res) => {
         if (err) throw err;
-        console.log(res);
+        console.log("ipfs found", res);
         const hash = res[0].hash;
         // add hash and headers to cache
-        CACHE[details.url] = {
-          'headers': details.responseHeaders, // FIXME: clean up headers
-          'ipfs_hash': hash
-        };
-        console.log("stored", hash, "for", details.url);
+        _emit_to_index(details.url, details.headers, hash)
       });
     };
   }

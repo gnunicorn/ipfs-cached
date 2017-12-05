@@ -78,7 +78,8 @@ Whats the state?
      - [x] check whether a request can be cached by their headers
  - [x] cache responses via IPFS
  - [x] load responses from local cache
- - [ ] emit responses to network / update from network
+ - [x] emit responses to network / update from network
+     - [x] react to changes from the network: add to index 
  - [x] implement proxying via PAC
  - [x] retry via proxy on broken request
  - [x] implement simple blacklisting example (spoofing geo-ip-lists)

@@ -229,10 +229,9 @@ function storeInCache(details) {
   if (_can_be_cached(details)) {
     // cool this can be cached, let's do it!
 
-    console.log("will store in cache", details);
     let filter = browser.webRequest.filterResponseData(details.requestId);
     let buffer;
-    // console.log(filter);
+    console.log("will store in cache", details, filter);
 
     filter.ondata = (e) => {
       // FIXME: can we always be sure this is complete?
@@ -336,10 +335,9 @@ browser.webRequest.onBeforeSendHeaders.addListener(
 );
 
 
-browser.webRequest.onError.addListener(
+browser.webRequest.onErrorOccurred.addListener(
   maybeRetryWithProxy,
-  {urls: ["https://www.hellorust.com/*"]},
-  ["blocking", "requestHeaders"]
+  {urls: ["https://www.hellorust.com/*"]}
 );
 
 

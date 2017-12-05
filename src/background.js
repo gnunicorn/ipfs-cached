@@ -13,6 +13,11 @@ const EMPTY_FILE = browser.extension.getURL('empty.html');
 const EXAMPLE_FILE_URL = "/ipfs/QmTDMoVqvyBkNMRhzvukTDznntByUNDwyNdSfV8dZ3VKRC/readme.md";
 
 
+
+// Location of the proxy script, relative to manifest.json
+const proxyScriptURL = "proxy.js";
+
+
 // our internal cache
 const CACHE = {
   "https://www.test.com/hello-world1": {
@@ -186,6 +191,7 @@ function _is_stale(headers) {
   return false
 }
 
+
 // 
 // load the @{fileUrl} from IPFS and write the content into
 // @{filter} WebRequest
@@ -284,6 +290,9 @@ function canLoadFromCache(details) {
   }
 }
 
+// 
+// ---- Hooking to browser events
+// 
 
 browser.webRequest.onHeadersReceived.addListener(
   storeInCache,
@@ -299,4 +308,55 @@ browser.webRequest.onBeforeSendHeaders.addListener(
 );
 
 
-console.log("starting up")
+
+//
+// ---- PROXY SETUP
+// 
+
+// Register the proxy script
+browser.proxy.register(proxyScriptURL);
+
+// Log any errors from the proxy script
+browser.proxy.onProxyError.addListener(error => {
+  console.error(`Proxy error: ${error.message}`);
+});
+
+browser.runtime.onMessage.addListener((message, sender) => {
+  // only handle messages from the proxy script
+  if (sender.url !=  browser.extension.getURL(proxyScriptURL)) {
+    return;
+  }
+
+  // initialization phase, hook up the current data
+  if (message === "init") {
+
+    browser.storage.onChanged.addListener((newSettings) => {
+      // Whenever someone changes the blocked host,
+      // we'll sync it to the PAC-Proxy script
+      browser.runtime.sendMessage(newSettings.blockedHosts.newValue, {toProxyScript: true});
+    });
+
+    // get the current settings, then...
+    browser.storage.local.get()
+      .then((storedSettings) => {
+        // if there are stored settings, update the proxy with them...
+        if (storedSettings.blockedHosts) {
+          browser.runtime.sendMessage(storedSettings.blockedHosts, {toProxyScript: true});
+        // ...otherwise, initialize storage with the default values
+        } else {
+          browser.storage.local.set({
+             blockedHosts: ["example.com", "example.org"]
+           });
+        }
+      }).catch(()=> {
+        console.log("Error retrieving stored settings");
+      });
+  } else {
+    // after the init message the only other messages are status messages
+    console.log('message from proxy', message);
+  }
+
+});
+
+
+console.log("started up")

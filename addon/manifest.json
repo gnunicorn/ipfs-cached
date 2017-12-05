@@ -16,7 +16,9 @@
     "*://*/*",
     "storage",
     "webRequest",
-    "webRequestBlocking"
+    "webRequestBlocking",
+    "proxy",
+    "storage"
   ],
 
   "background": {

@@ -68,3 +68,17 @@ yes |  | store_in_cache() |    |yes                    |
     +--------------------------------------------------+
 
 ```
+
+
+## ToDos
+
+Whats the state?
+
+ - [x] interject web requests (example only for https://www.hellorust.com)
+     - [x] check whether a request can be cached by their headers
+ - [x] cache responses via IPFS
+ - [x] load responses from local cache
+ - [ ] emit responses to network / update from network
+ - [x] implement proxying via PAC
+ - [ ] retry via proxy on broken request
+ - [ ] implement simple blacklisting example (spoofing geo-ip-lists)
